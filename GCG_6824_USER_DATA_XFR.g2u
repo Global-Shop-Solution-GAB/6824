@@ -1,0 +1,76 @@
+Program.Sub.Preflight.Start
+Program.External.Include.Library("3500.lib")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sSql.Declare(String,"")
+V.Local.sQuote.Declare(String,"")
+V.Local.sRet.Declare(String,"")
+V.Local.i.Declare(Long,0)
+V.Local.iRet.Declare(Long,0)
+V.Local.sMsg.Declare(String,"")
+
+F.Intrinsic.Control.SelectCase(V.Caller.Hook)
+	F.Intrinsic.Control.Case("17343")
+		F.Intrinsic.String.LPad(V.Passed.Quote,"0",7,V.Local.sQuote)
+		F.Intrinsic.String.Build("select Part, Location, rtrim(User_1) as User_1, UM_Inventory, Product_Line, Description, Price_Quote from V_QUOTE_LINES where quote_no = '{0}' and Quote_won = 'W'",V.Local.sQuote,V.Local.sSql)
+		V.Passed.Global.Set(V.Passed.Quote)
+		
+		F.ODBC.Connection!Con.OpenCompanyConnection
+		F.Data.DataTable.CreateFromSQL("User","con",V.Local.sSql,True)
+		F.Intrinsic.Control.If(V.DataTable.User.RowCount--,<>,-1)
+			F.Intrinsic.Control.For(V.Local.i,0,V.DataTable.User.RowCount--,1)
+				F.Intrinsic.String.Build("select Part from V_INVENTORY_MSTR where Part = '{0}' and Location = '{1}'",V.DataTable.User(V.Local.i).Part!FieldValTrim,V.DataTable.User(V.Local.i).Location!FieldValTrim,V.Local.sSql)
+				F.ODBC.Connection!Con.ExecuteAndReturn(V.Local.sSql,V.Local.sRet)
+				F.Intrinsic.Control.If(V.Local.sRet.Trim,=,"")
+					F.Global.Inventory.CreatePart(V.DataTable.User(V.Local.i).Part!FieldValTrim,V.DataTable.User(V.Local.i).UM_Inventory!FieldValTrim,V.DataTable.User(V.Local.i).Description!FieldValTrim,V.DataTable.User(V.Local.i).Location!FieldValTrim,V.DataTable.User(V.Local.i).Product_Line!FieldValTrim,"J","","",V.DataTable.User(V.Local.i).Price_Quote!FieldValTrim,"NOMAINT")
+					F.Intrinsic.String.Build("Update INVENTORY_MST2 Set Text_Info1 = '{0}' where Part = '{1}' and Location = '{2}'",V.DataTable.User(V.Local.i).User_1!FieldValTrim,V.DataTable.User(V.Local.i).Part!FieldValTrim,V.DataTable.User(V.Local.i).Location!FieldValTrim,V.Local.sSql)
+					F.ODBC.Connection!con.Execute(V.Local.sSql)
+					F.Intrinsic.String.Build("Do you want to maintain the new part now? Part: {0}",V.DataTable.User(V.Local.i).Part!FieldValTrim,V.Local.sMsg)
+					F.Intrinsic.UI.Msgbox(V.Local.sMsg,"Maintain Part",4,V.Local.iRet)
+					F.Intrinsic.Control.If(V.Local.iRet,=,6)
+						F.Data.DataTable.AddRow("3500","Part",V.DataTable.User(V.Local.i).Part!FieldValTrim,"Loc",V.DataTable.User(V.Local.i).Location!FieldValTrim,"CompanyCode",V.Caller.CompanyCode,"Mode","O")
+						F.Intrinsic.Control.CallSub(3500Sync)
+					F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.Else
+					F.Intrinsic.String.Build("Update INVENTORY_MST2 Set Text_Info1 = '{0}' where Part = '{1}' and Location = '{2}'",V.DataTable.User(V.Local.i).User_1!FieldValTrim,V.DataTable.User(V.Local.i).Part!FieldValTrim,V.DataTable.User(V.Local.i).Location!FieldValTrim,V.Local.sSql)
+					F.ODBC.Connection!con.Execute(V.Local.sSql)
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.Next(V.Local.i)
+'			F.Data.DataTable.SaveToDB("User","con","INVENTORY_MST2","Part",256,"Part@!@Part*!*User_1@!@Text_Info1")
+		F.Intrinsic.Control.EndIf
+		F.Data.DataTable.Close("User")
+		F.ODBC.Connection!con.Close
+		
+	F.Intrinsic.Control.CaseElse
+		F.Intrinsic.Control.End
+		
+F.Intrinsic.Control.EndSelect
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: Project {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Exit)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Exit.Start
+F.Intrinsic.Control.SetErrorHandler("Exit_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Exit_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.Exit.End
